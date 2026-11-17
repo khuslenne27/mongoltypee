@@ -19,4 +19,15 @@ TIME_ZONE = 'Asia/Ulaanbaatar'
 USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-REST_FRAMEWORK = {'DEFAULT_AUTHENTICATION_CLASSES':[], 'DEFAULT_PERMISSION_CLASSES':['rest_framework.permissions.AllowAny'], 'DEFAULT_THROTTLE_CLASSES':['rest_framework.throttling.AnonRateThrottle'], 'DEFAULT_THROTTLE_RATES':{'anon':'120/min'}}
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME':'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME':'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME':'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME':'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Strict'
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = 'Strict'
+REST_FRAMEWORK = {'DEFAULT_AUTHENTICATION_CLASSES':['rest_framework.authentication.SessionAuthentication'], 'DEFAULT_PERMISSION_CLASSES':['rest_framework.permissions.AllowAny'], 'DEFAULT_THROTTLE_CLASSES':['rest_framework.throttling.AnonRateThrottle','rest_framework.throttling.UserRateThrottle'], 'DEFAULT_THROTTLE_RATES':{'anon':'120/min','user':'120/min'}}

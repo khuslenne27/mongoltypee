@@ -1,11 +1,16 @@
+from django.contrib.auth import get_user_model
 import uuid
 from datetime import timedelta
-from django.test import TestCase
+from django.test import TestCase, Client
 from django.utils import timezone
+from django.core.cache import cache
 from .models import Word,TestSession
 from .scoring import score
 class TypingTests(TestCase):
     def setUp(self):
+        cache.clear()
+        self.user = get_user_model().objects.create_user(username="testreader")
+        self.client.force_login(self.user)
         self.visitor=str(uuid.uuid4());self.headers={'HTTP_X_VISITOR_ID':self.visitor}
         for lang,text in [('en','book'),('mn-Cyrl','ном'),('mn-Mong','ᠨᠣᠮ')]:Word.objects.create(language=lang,text=text,verified=lang!='mn-Mong')
     def new(self,**kwargs):
@@ -19,7 +24,11 @@ class TypingTests(TestCase):
             for category in ['words','punctuation','numbers','mixed']:
                 r=self.new(language=language,category=category,demo=True);self.assertEqual(r.status_code,200)
                 test=r.json();self.assertEqual(len(test['text'].split(' ')),10)
-                if category in ['numbers','mixed']:self.assertTrue(any(c.isdigit() for c in test['text']))
+                if category in ['numbers','mixed']:
+                    digits=[c for c in test['text'] if c.isdigit()]
+                    self.assertTrue(digits)
+                    if language=='mn-Mong':self.assertTrue(all('᠐'<=c<='᠙' for c in digits))
+                    else:self.assertTrue(all('0'<=c<='9' for c in digits))
                 if category in ['punctuation','mixed']:self.assertTrue(any(c in ',.!?;᠂᠃᠄᠁' for c in test['text']))
                 saved=self.submit(test,test['text']);self.assertEqual(saved.status_code,201,saved.content);self.assertEqual(saved.json()['accuracy'],100)
     def test_unicode_selector_and_word_alignment(self):
@@ -33,8 +42,9 @@ class TypingTests(TestCase):
         t=self.new().json();first=self.submit(t,t['text']);self.assertEqual(first.status_code,201)
         repeat=self.submit(t,t['text']);self.assertEqual(repeat.status_code,200);self.assertEqual(first.json()['id'],repeat.json()['id'])
         self.assertEqual(len(self.client.get('/api/history',**self.headers).json()),1)
-        self.assertEqual(self.client.get('/api/history',HTTP_X_VISITOR_ID=str(uuid.uuid4())).json(),[])
-        self.assertEqual(self.client.post(f"/api/tests/{t['id']}/start",{},content_type='application/json',HTTP_X_VISITOR_ID=str(uuid.uuid4())).status_code,404)
+        other=Client()
+        self.assertEqual(other.get('/api/history',HTTP_X_VISITOR_ID=str(uuid.uuid4())).status_code,403)
+        self.assertEqual(other.post(f"/api/tests/{t['id']}/start",{},content_type='application/json',HTTP_X_VISITOR_ID=str(uuid.uuid4())).status_code,404)
     def test_demo_and_invalid_options(self):
         self.assertEqual(self.new(language='mn-Mong').status_code,503)
         self.assertTrue(self.new(language='mn-Mong',demo=True).json()['demo'])
@@ -43,6 +53,7 @@ class TypingTests(TestCase):
         self.assertEqual(self.new(category='bad').status_code,400)
     def test_timer_save_and_demo_excluded_from_ranking(self):
         t=self.new(mode='time',amount=30).json();r=self.submit(t,'book',30000);self.assertEqual(r.status_code,201)
-        self.assertEqual(len(self.client.get('/api/leaderboard?language=en').json()),1)
+        self.assertFalse(r.json()['rank_eligible'])
+        self.assertEqual(self.client.get('/api/leaderboard?language=en').json(),[])
         t=self.new(mode='time',amount=30,language='mn-Mong',demo=True).json();self.submit(t,'ᠨᠣᠮ',30000)
         self.assertEqual(self.client.get('/api/leaderboard?language=mn-Mong').json(),[])

@@ -5,4 +5,6 @@ class Command(BaseCommand):
     def handle(self,*args,**kwargs):
         call_command('migrate',interactive=False)
         call_command('seed_words')
+        call_command('import_dictionary')
+        call_command('import_mongolian')
         self.stdout.write(self.style.SUCCESS('Ready: python manage.py runserver 127.0.0.1:8000'))

@@ -1,4 +1,5 @@
 import uuid
+from django.conf import settings
 from django.db import models
 class Word(models.Model):
     language = models.CharField(max_length=12,choices=[('en','English'),('mn-Cyrl','Кирилл'),('mn-Mong','Монгол бичиг')])
@@ -10,6 +11,7 @@ class Word(models.Model):
         constraints=[models.UniqueConstraint(fields=['language','text'],name='unique_language_word')]
     def __str__(self): return f'{self.language}: {self.text}'
 class TestSession(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='typing_sessions')
     id = models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
     visitor = models.UUIDField(db_index=True)
     language = models.CharField(max_length=12)
@@ -21,6 +23,12 @@ class TestSession(models.Model):
     demo = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True,blank=True)
+    browser_owned = models.BooleanField(default=False)
+    recovered_start = models.BooleanField(default=False)
+    checkpoint_text = models.TextField(default='', blank=True)
+    checkpoint_seq = models.PositiveIntegerField(default=0)
+    checkpoint_at = models.DateTimeField(null=True, blank=True)
+    integrity_ok = models.BooleanField(default=True)
 class Result(models.Model):
     session = models.OneToOneField(TestSession,on_delete=models.CASCADE)
     typed_text = models.TextField()
@@ -29,3 +37,5 @@ class Result(models.Model):
     accuracy = models.FloatField()
     errors = models.PositiveIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
+    rank_eligible = models.BooleanField(default=False, db_index=True)
+    rank_reason = models.CharField(max_length=120, default='No live verification')
